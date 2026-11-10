@@ -1,6 +1,44 @@
 # Running notes: where we left off (10 Nov 2026)
 
-**Next:** Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is built on branch `phase-4-safeguards-sla` (2 commits, not merged into `main`, not pushed). `main` now includes Phase 3 (fast-forwarded locally, not pushed).
+**Next:** fix the project review findings below (R-01 first), then Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is on `main` locally (`main` and `phase-4-safeguards-sla` both at `6f39ede`), not pushed.
+
+## Project review: findings to fix later (10 Nov 2026)
+
+Whole-project read-through after Phase 4. Nothing changed yet. Full details, edge cases and fix ideas are in [`docs/review-findings.md`](docs/review-findings.md) (local; `docs/` is git-ignored, so this checklist is the committed copy). Suggested order: R-01 → R-02 → R-04 → R-05 → R-06. Every fix updates the module doc and `edge-cases.md` first.
+
+**Bugs**
+- [ ] R-01 New opportunities always saved as 20 h (`estimatedHours` never passed by the create form or controller), so the weekly-hours safeguard is wrong.
+- [ ] R-02 Web lists merge fake demo data into real data (Opportunities, Students when empty, Proposals, opportunity detail start); a student can bid on a fake project and get 404.
+- [ ] R-03 Students can mark their own training COMPLETED and add their own skills; both feed tier suggestions unchecked (mentor confirmation needed).
+- [ ] R-04 Earnings: student-sent `exchangeRate` accepted, currency free text, `earningDate` not validated, no text length limits.
+- [ ] R-05 A rejected earning can't be resubmitted (the duplicate check and unique index include REJECTED).
+- [ ] R-06 Sign-up approve/reject read the record then save it: concurrent approve + reject, or a failure halfway, leave a broken or stuck request.
+
+**Logic gaps**
+- [ ] R-07 No edit / close / cancel for an opportunity before allocation.
+- [ ] R-08 Opportunity create accepts any tier text, past deadline, negative budget, `bidsCloseAt` after the deadline, a client-sent id, a fake match score.
+- [ ] R-09 The allocated (or reassigned-to) student is never messaged.
+- [ ] R-10 No message for earning verified/rejected, tier changed, tier suggestion decided.
+- [ ] R-11 Tier change has no reason, history or conditional update; pending suggestions aren't resolved.
+- [ ] R-12 A pending in-time extension or hand-back still goes overdue, gets reminders and counts toward the cool-down.
+- [ ] R-13 Overdue alerts and waiting decisions reach only the student, not mentor or coordinator.
+- [ ] R-14 After a reassign, the new student sees the previous student's timeline and reason.
+- [ ] R-15 `allocatedStudentId` visible to every student in the opportunity list.
+- [ ] R-16 The old HourLog says 20 h while the cap is 10 h; `requiredCgpa` is per student instead of a Settings value.
+- [ ] R-17 Pending sign-ups never expire; "received" shown after the last attempt; a user id tied to the first registration number can cause a false "taken".
+- [ ] R-18 A verified earning can't be reopened; the student's total is saved by read-then-save.
+
+**Security (before deploy)**
+- [ ] R-19 Login limit only per email + IP (add per-IP and per-email limits).
+- [ ] R-20 `trust proxy` not set: behind a host proxy everyone shares one IP for the rate limits.
+- [ ] R-21 Logout only clears the browser (token valid up to 1 day, kept in localStorage): add "Sign out everywhere".
+- [ ] R-22 Login is faster for unknown emails (compare against a dummy hash).
+
+**Performance**
+- [ ] R-23 Lists return every record with screenshots, photos and proposal PDFs inside; no pagination.
+- [ ] R-24 Rate limits and hourly checks assume one server (document it).
+
+**Improvements:** R-25 no demo fallbacks in production web builds · R-26 admin activity log · R-27 mentor-confirmed training + skill endorsements · R-28 decision notifications + "bid closes soon" · R-29 already planned (email OTP, public holidays, mentors by account, Messages follow-ups) · R-30 hide analytics groups under 5 students.
 
 ## Phase 4 (safeguards, weekly hours, SLA): done 10 Nov 2026
 
