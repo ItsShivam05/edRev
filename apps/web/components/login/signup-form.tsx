@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { SIGNUP_COURSES, SIGNUP_PROGRAMS } from "@edurev/types";
-import { IconCheckCircle, IconClock, IconShield } from "@/components/ui/icons";
+import { VerifiedDone, VerifyEmailStep } from "@/components/login/email-code";
+import { IconCheckCircle, IconShield } from "@/components/ui/icons";
 import { API_BASE } from "@/lib/api";
 
 const field =
   "mt-1.5 w-full rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] px-4 py-2.5 text-sm text-[#30343B] placeholder-[#8C93A0] outline-none transition focus:border-[#3978B8] focus:bg-white focus:ring-2 focus:ring-[#C2DCF2]";
 const labelCls = "block text-xs font-bold uppercase tracking-wider text-[#666D7A]";
 
-/** Student self sign-up. Creates a request that a Cell Coordinator or Administrator approves. */
+/**
+ * Student self sign-up. Creates a request that a Cell Coordinator or Administrator approves, after the student
+ * verifies their college email with a 6-digit code (docs/modules/email-codes.md).
+ */
 export function SignupForm({ onBackToSignIn }: { onBackToSignIn: (email?: string) => void }) {
   const [config, setConfig] = useState<{ enabled: boolean; domains: string[] } | null>(null);
   const [name, setName] = useState("");
@@ -24,7 +28,7 @@ export function SignupForm({ onBackToSignIn }: { onBackToSignIn: (email?: string
   const [website, setWebsite] = useState(""); // honeypot: hidden from people, bots fill it in
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [stage, setStage] = useState<"form" | "code" | "verified">("form");
 
   useEffect(() => {
     fetch(`${API_BASE}/auth/signup-config`)
@@ -56,7 +60,7 @@ export function SignupForm({ onBackToSignIn }: { onBackToSignIn: (email?: string
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.message || "Sign-up failed. Please try again.");
-      setDone(true);
+      setStage("code");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-up failed. Please try again.");
     } finally {
@@ -64,26 +68,12 @@ export function SignupForm({ onBackToSignIn }: { onBackToSignIn: (email?: string
     }
   };
 
-  if (done) {
-    return (
-      <div className="rise-in text-center">
-        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#FEF6EE] text-[#C27803] ring-1 ring-[#FBD7B3]">
-          <IconClock size={26} />
-        </span>
-        <h3 className="mt-4 text-xl font-extrabold text-[#30343B]">Request received</h3>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#666D7A]">
-          Your cell coordinator will review your details. Once approved, sign in with <strong className="text-[#30343B]">{email.trim().toLowerCase()}</strong> and we&apos;ll
-          help you set up your profile.
-        </p>
-        <button
-          className="mt-6 w-full rounded-xl bg-[#F2A65A] py-3 text-sm font-bold text-[#30343B] shadow-sm ring-1 ring-[#FBD7B3] transition hover:bg-[#E59443]"
-          onClick={() => onBackToSignIn(email.trim().toLowerCase())}
-          type="button"
-        >
-          Back to sign in
-        </button>
-      </div>
-    );
+  const cleanEmail = email.trim().toLowerCase();
+  if (stage === "code") {
+    return <VerifyEmailStep email={cleanEmail} onBack={() => setStage("form")} onVerified={() => setStage("verified")} password={password} />;
+  }
+  if (stage === "verified") {
+    return <VerifiedDone email={cleanEmail} onBackToSignIn={() => onBackToSignIn(cleanEmail)} />;
   }
 
   if (config && !config.enabled) {
@@ -193,7 +183,7 @@ export function SignupForm({ onBackToSignIn }: { onBackToSignIn: (email?: string
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E6E6E6] bg-[#F7F7F6]/60 p-3 text-xs leading-relaxed text-[#666D7A]">
         <input checked={accepted} className="mt-0.5 h-4 w-4 accent-[#F2A65A]" onChange={(e) => setAccepted(e.target.checked)} type="checkbox" />
         <span>
-          I agree to the <strong className="text-[#30343B]">academic safeguards</strong>: a 20-hour weekly work cap, minimum CGPA rules and no new work during exam
+          I agree to the <strong className="text-[#30343B]">academic safeguards</strong>: a weekly work cap (10 hours in term, 20 in breaks), minimum CGPA rules and no new work during exam
           blackouts.
         </span>
       </label>
@@ -206,7 +196,7 @@ export function SignupForm({ onBackToSignIn }: { onBackToSignIn: (email?: string
         {submitting ? "Sending request…" : "Create my student account"}
       </button>
       <p className="flex items-center justify-center gap-1.5 text-[11px] text-[#8C93A0]">
-        <IconCheckCircle size={12} /> New accounts start at TIER 1 and are approved by your cell coordinator.
+        <IconCheckCircle size={12} /> We&apos;ll email you a code to verify your address. New accounts start at TIER 1.
       </p>
     </form>
   );

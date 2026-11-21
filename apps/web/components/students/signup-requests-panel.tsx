@@ -71,6 +71,8 @@ export function SignupRequestsPanel({ onDecided }: { onDecided?: () => void }) {
                   <p className="font-bold text-[#30343B]">{r.name}</p>
                   <span className="text-xs text-[#666D7A]">{r.email}</span>
                   {r.attempts > 1 && <Badge tone="amber">Re-applied ({r.attempts}/3)</Badge>}
+                  {/* Email codes: requests made since 22 Nov 2026 are listed only after the student verified their email */}
+                  {r.emailVerifiedAt && <Badge tone="green">✓ Email verified</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-[#666D7A]">
                   Reg. no. <strong className="text-[#30343B]">{r.registrationNumber}</strong> · {r.program} · {r.course} · Year {r.year} · requested {formatDate(r.requestedAt)}

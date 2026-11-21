@@ -1,6 +1,18 @@
-# Running notes: where we left off (10 Nov 2026)
+# Running notes: where we left off (22 Nov 2026)
 
-**Next:** fix the project review findings below (R-01 first), then Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is on `main` locally (`main` and `phase-4-safeguards-sla` both at `6f39ede`), not pushed.
+**Next:** fix the project review findings below (R-01 first), then Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is on `main` and GitHub. Email codes are on branch `feature/email-codes` (not merged, not pushed).
+
+## Email codes: sign-up verification and forgot password, done 22 Nov 2026
+
+Full doc: `docs/modules/email-codes.md` (local). Edge cases OTP-*, VERIFY-*, RESET-*, MAIL-* in `docs/edge-cases.md`.
+
+- **Sign-up:** after the form, the student types a 6-digit code emailed to their `@lpu.in` mailbox (plus the password they just chose). Until then the request is hidden from the Cell Coordinator; signing in shows the code screen again; never-verified first-time sign-ups are deleted after 24 h. Coordinators see "✓ Email verified" on each request. Older pending requests work as before.
+- **Forgot password:** "Forgot password?" on the sign-in tab → code by email → new password. Same reply for every email; every old session ends; a "password changed" email is sent.
+- **Codes:** 10 minutes, 5 tries, single use, new code after 60 s. Codes rather than links because Outlook scans links.
+- **Sending is free:** Gmail + App password. Until `SMTP_USER` / `SMTP_PASS` are in `apps/api/.env`, codes are printed in the API terminal. Production refuses to start without them.
+- Also fixed: the login page and sign-up checkbox said "20h weekly cap"; now 10 h in term (20 h in breaks).
+- 213 API tests (211 pass + 2 skipped on MongoDB; 190 pass + 23 skipped in demo mode), typecheck and web build OK. Screenshots: sign-up code step, wrong code, verified, coordinator list with "Email verified", forgot password (both steps), password changed, phone.
+- **To do (user):** create the project Gmail account, turn on 2-Step Verification, create an App password, put it in `apps/api/.env`, restart the API and test with a real `@lpu.in` address (check Junk the first time).
 
 ## Project review: findings to fix later (10 Nov 2026)
 
@@ -25,7 +37,7 @@ Whole-project read-through after Phase 4. Nothing changed yet. Full details, edg
 - [ ] R-14 After a reassign, the new student sees the previous student's timeline and reason.
 - [ ] R-15 `allocatedStudentId` visible to every student in the opportunity list.
 - [ ] R-16 The old HourLog says 20 h while the cap is 10 h; `requiredCgpa` is per student instead of a Settings value.
-- [ ] R-17 Pending sign-ups never expire; "received" shown after the last attempt; a user id tied to the first registration number can cause a false "taken".
+- [ ] R-17 (partly done 22 Nov: unverified sign-ups now expire after 24 h) Pending sign-ups never expire; "received" shown after the last attempt; a user id tied to the first registration number can cause a false "taken".
 - [ ] R-18 A verified earning can't be reopened; the student's total is saved by read-then-save.
 
 **Security (before deploy)**
