@@ -5,6 +5,7 @@ import { isDbConnected } from "../config/db.js";
 import { DEV_JWT_SECRET } from "../config/runtime.js";
 import { UserModel } from "../models/index.js";
 import { DEV_DEFAULT_PASSWORD, seedUsersList } from "../utils/seed.js";
+import { needsEmailVerification } from "./email-codes.service.js";
 
 // S2: production refuses to start with the development secret (see config/runtime.ts)
 const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET;
@@ -60,6 +61,14 @@ export async function loginService(rawEmail: string, password: string): Promise<
   if (!isValidPassword) {
     const err: any = new Error("Invalid email or password.");
     err.statusCode = 401;
+    throw err;
+  }
+
+  // Email codes (VERIFY-01): a new sign-up types its email code first. Only revealed after a correct password.
+  if (needsEmailVerification(user)) {
+    const err: any = new Error(`Please verify your email first: enter the 6-digit code we sent to ${user.email}. You can ask for a new code.`);
+    err.statusCode = 403;
+    err.code = "EMAIL_NOT_VERIFIED";
     throw err;
   }
 

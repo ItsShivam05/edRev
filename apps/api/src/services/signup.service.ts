@@ -4,6 +4,8 @@ import { isDbConnected } from "../config/db.js";
 import { AcademicSnapshotModel, HourLogModel, StudentModel, UserModel } from "../models/index.js";
 import { getSettingsService } from "./analytics.service.js";
 import { dateInTimeZone, getInstitutionTimeZone } from "../utils/time.js";
+import { needsEmailVerification, sendSignupCode } from "./email-codes.service.js";
+import { deleteCodesFor } from "./otp.service.js";
 
 const MAX_ATTEMPTS = 3;
 
@@ -64,14 +66,35 @@ export async function signupService(input: SignupSubmission): Promise<void> {
   };
 
   if (existing) {
-    // Only a rejected request can be re-submitted, and only a few times. Anything else stays silent.
     const attempts = existing.signup?.attempts ?? 0;
+
+    // Email codes (VERIFY-03): nobody has proven this mailbox yet, so the latest form replaces the details and
+    // password, and a code goes out again. Verifying needs that latest password.
+    if (needsEmailVerification(existing.toObject())) {
+      existing.set({
+        name: input.name.trim(),
+        passwordHash: await bcrypt.hash(input.password, 10),
+        signup: { ...details, attempts: Math.max(attempts, 1), verificationRequired: true },
+      });
+      try {
+        await existing.save();
+      } catch (err) {
+        if (isDuplicateKey(err)) throw registrationTaken();
+        throw err;
+      }
+      await sendSignupCode({ id: existing.id, name: existing.name, email });
+      return;
+    }
+
+    // Only a rejected request can be re-submitted, and only a few times. Anything else stays silent.
     if (existing.status !== "REJECTED" || attempts >= MAX_ATTEMPTS) return;
+    // VERIFY-07: an email verified earlier stays verified; otherwise the student verifies it now
+    const verifiedAt: string | undefined = existing.signup?.emailVerifiedAt;
     existing.set({
       name: input.name.trim(),
       passwordHash: await bcrypt.hash(input.password, 10),
       status: "PENDING_APPROVAL",
-      signup: { ...details, attempts: attempts + 1 },
+      signup: { ...details, attempts: attempts + 1, verificationRequired: true, ...(verifiedAt ? { emailVerifiedAt: verifiedAt } : {}) },
     });
     try {
       await existing.save();
@@ -79,18 +102,21 @@ export async function signupService(input: SignupSubmission): Promise<void> {
       if (isDuplicateKey(err)) throw registrationTaken();
       throw err;
     }
+    if (!verifiedAt) await sendSignupCode({ id: existing.id, name: existing.name, email });
     return;
   }
 
+  const id = `usr-${registrationNumber.toLowerCase()}`;
   try {
     await UserModel.create({
-      id: `usr-${registrationNumber.toLowerCase()}`,
+      id,
       name: input.name.trim(),
       email,
       passwordHash: await bcrypt.hash(input.password, 10),
       role: "STUDENT",
       status: "PENDING_APPROVAL",
-      signup: { ...details, attempts: 1 },
+      // Email codes: hidden from the coordinator until the student types the code sent to this mailbox
+      signup: { ...details, attempts: 1, verificationRequired: true },
     });
   } catch (err: any) {
     // A concurrent request may have won the race: same email → silent, same registration number → conflict
@@ -100,6 +126,7 @@ export async function signupService(input: SignupSubmission): Promise<void> {
     }
     throw err;
   }
+  await sendSignupCode({ id, name: input.name.trim(), email });
 }
 
 function toRequest(user: User): SignupRequest {
@@ -119,12 +146,17 @@ function toRequest(user: User): SignupRequest {
     decidedAt: s.decidedAt,
     rejectionReason: s.rejectionReason,
     studentId: user.studentId,
+    ...(s.emailVerifiedAt ? { emailVerifiedAt: s.emailVerifiedAt } : {}),
   };
 }
 
 export async function listSignupRequestsService(status?: AccountStatus): Promise<SignupRequest[]> {
   if (!isDbConnected()) return [];
-  const filter: Record<string, unknown> = { "signup.registrationNumber": { $exists: true } };
+  // Email codes (VERIFY-05): a sign-up that hasn't verified its email isn't shown to reviewers yet
+  const filter: Record<string, unknown> = {
+    "signup.registrationNumber": { $exists: true },
+    $nor: [{ status: "PENDING_APPROVAL", "signup.verificationRequired": true, "signup.emailVerifiedAt": { $exists: false } }],
+  };
   if (status) filter.status = status;
   const users = await UserModel.find(filter).sort({ "signup.requestedAt": -1 }).lean<User[]>();
   return users.map(toRequest);
@@ -144,6 +176,7 @@ async function pendingUser(userId: string) {
   const user = await UserModel.findOne({ id: userId });
   if (!user || !user.signup?.registrationNumber) throw httpError("Sign-up request not found.", 404);
   if (user.status !== "PENDING_APPROVAL") throw httpError(`This request was already ${user.status === "ACTIVE" ? "approved" : "rejected"}.`, 409);
+  if (needsEmailVerification(user.toObject())) throw httpError("The student hasn't verified their email yet.", 409);
   return user;
 }
 
@@ -214,6 +247,7 @@ export async function rejectSignupService(userId: string, decidedBy: string, rea
 /** Test/cleanup helper: removes a signed-up account and anything created for it. */
 export async function deleteSignupAccount(email: string): Promise<void> {
   if (!isDbConnected()) return;
+  await deleteCodesFor([email]);
   const user = await UserModel.findOne({ email: email.toLowerCase() }).lean<User>();
   if (!user) return;
   if (user.studentId) {

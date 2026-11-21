@@ -42,7 +42,7 @@ export interface UserPreferences { celebrations: boolean; reduceMotion: boolean;
 export const DEFAULT_USER_PREFERENCES: UserPreferences = { celebrations: true, reduceMotion: false, showBadges: true };
 /** Accounts created before self sign-up have no status and count as ACTIVE. */
 export type AccountStatus = "ACTIVE" | "PENDING_APPROVAL" | "REJECTED";
-export interface SignupDetails { registrationNumber: string; program: string; course: string; year: number; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; }
+export interface SignupDetails { registrationNumber: string; program: string; course: string; year: number; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; /** Email codes: true for sign-ups that must verify their email (all made from 22 Nov 2026). */ verificationRequired?: boolean; /** Email codes: when the student typed the code sent to their mailbox. */ emailVerifiedAt?: string; }
 export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; preferences?: UserPreferences; status?: AccountStatus; signup?: SignupDetails; /** S5: bumped to end every existing session (never sent to clients). */ tokenVersion?: number; }
 export interface AuthResponse { user: Omit<User, "passwordHash">; token: string; }
 export interface ApiError { message: string; }
@@ -54,7 +54,9 @@ export const SIGNUP_COURSES = ["B.Tech", "BCA", "B.Des", "BBA", "B.Com", "MBA", 
 /** What a prospective student submits. Role is never accepted: self sign-up only creates STUDENT accounts. */
 export interface SignupSubmission { name: string; email: string; password: string; registrationNumber: string; program: string; course: string; year: number; acceptSafeguards: boolean; }
 /** A sign-up as seen by reviewers (Cell Coordinator, Administrator). */
-export interface SignupRequest { userId: string; name: string; email: string; registrationNumber: string; program: string; course: string; year: number; status: AccountStatus; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; studentId?: string; }
+/** Email codes (docs/modules/email-codes.md): what a one-time code is for. */
+export type OneTimeCodePurpose = "SIGNUP_VERIFY" | "PASSWORD_RESET";
+export interface SignupRequest { userId: string; name: string; email: string; registrationNumber: string; program: string; course: string; year: number; status: AccountStatus; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; studentId?: string; /** Email codes: when the student verified their email (older requests have none). */ emailVerifiedAt?: string; }
 
 /** A public portfolio link (GitHub, LinkedIn, Behance…). Never credentials. */
 export interface PortfolioLink { label: string; url: string; }

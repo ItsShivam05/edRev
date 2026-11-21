@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import type {
   HelpRequest,
+  OneTimeCodePurpose,
   HourEntry,
   SafeguardOverride,
   SlaEvent,
@@ -381,6 +382,9 @@ const userSchema = new Schema<User>(
       decidedBy: { type: String },
       decidedAt: { type: String },
       rejectionReason: { type: String },
+      // Email codes (docs/modules/email-codes.md): sign-ups from 22 Nov 2026 must verify their email
+      verificationRequired: { type: Boolean },
+      emailVerifiedAt: { type: String },
     },
     preferences: {
       celebrations: { type: Boolean },
@@ -631,3 +635,35 @@ export const SafeguardOverrideModel = mongoose.models.SafeguardOverride || mongo
 export const SlaEventModel = mongoose.models.SlaEvent || mongoose.model<SlaEventDocument>("SlaEvent", slaEventSchema);
 export const HelpRequestModel = mongoose.models.HelpRequest || mongoose.model<HelpRequest>("HelpRequest", helpRequestSchema);
 export const JobRunModel = mongoose.models.JobRun || mongoose.model<JobRunDocument>("JobRun", jobRunSchema);
+
+/**
+ * Email codes (docs/modules/email-codes.md): one live 6-digit code per email and purpose. Only an HMAC of the code
+ * is stored; MongoDB deletes the record at `expiresAt` (TTL index), and it is deleted when used.
+ */
+export interface OneTimeCodeDocument {
+  email: string;
+  purpose: OneTimeCodePurpose;
+  userId: string;
+  codeHash: string;
+  expiresAt: Date;
+  attempts: number;
+  lastSentAt: Date;
+}
+const oneTimeCodeSchema = new Schema<OneTimeCodeDocument>(
+  {
+    email: { type: String, required: true },
+    purpose: { type: String, enum: ["SIGNUP_VERIFY", "PASSWORD_RESET"], required: true },
+    userId: { type: String, required: true },
+    codeHash: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+    attempts: { type: Number, default: 0 },
+    lastSentAt: { type: Date, required: true },
+  },
+  { timestamps: false }
+);
+// OTP-09: one live code per email and purpose (a new code replaces the old one)
+oneTimeCodeSchema.index({ email: 1, purpose: 1 }, { unique: true });
+// OTP-03: MongoDB removes expired codes by itself
+oneTimeCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export const OneTimeCodeModel = mongoose.models.OneTimeCode || mongoose.model<OneTimeCodeDocument>("OneTimeCode", oneTimeCodeSchema);

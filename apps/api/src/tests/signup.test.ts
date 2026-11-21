@@ -5,11 +5,14 @@ import type { SettingsSummary, User } from "@edurev/types";
 import { isDbConnected } from "../config/db.js";
 import { AcademicSnapshotModel, SettingsModel, StudentModel, UserModel } from "../models/index.js";
 import { deleteSignupAccount } from "../services/signup.service.js";
+import { mailOutbox } from "../services/mail.service.js";
 import { resetRateLimits } from "../utils/rate-limit.js";
 import { makeClient, startTestServer, stopTestServer } from "./helpers.js";
 
 // Plenty of headroom for this suite; the limits themselves are tested explicitly below
 process.env.SIGNUP_RATE_LIMIT = "1000";
+// Email codes: sign-up codes land in the in-memory outbox (docs/modules/email-codes.md)
+process.env.MAIL_TRANSPORT = "memory";
 process.env.LOGIN_FAILURE_LIMIT = "1000";
 
 const PASSWORD = "Campus2026";
@@ -39,6 +42,15 @@ describe("Student Sign-up Suite", () => {
   const findUser = async (email: string) => UserModel.findOne({ email }).lean<User>();
   const requestFor = async (email: string, as: "admin" | "coordinator" = "admin") =>
     (await call("GET", "/signup-requests", { as })).json.data.find((r: { email: string }) => r.email === email);
+
+  /** Email codes: types the latest code sent to this address, as the student would. */
+  const verifyEmail = async (email: string) => {
+    const mail = [...mailOutbox()].reverse().find((m) => m.to === email.toLowerCase());
+    const code = mail?.subject.match(/(\d{6})/)?.[1];
+    assert.ok(code, `a code was emailed to ${email}`);
+    const res = await call("POST", "/auth/signup/verify", { body: { email, password: PASSWORD, code } });
+    assert.strictEqual(res.status, 200, res.json?.message);
+  };
 
   const cleanup = async () => {
     for (const email of ALL_EMAILS) await deleteSignupAccount(email);
@@ -154,6 +166,11 @@ describe("Student Sign-up Suite", () => {
       const wrong = await login(A.email, "WrongPass1");
       assert.strictEqual(wrong.status, 401);
       assert.strictEqual(wrong.json.code, undefined);
+      // Email codes: first the email is verified, then the request waits for approval
+      const unverified = await login(A.email);
+      assert.strictEqual(unverified.status, 403);
+      assert.strictEqual(unverified.json.code, "EMAIL_NOT_VERIFIED");
+      await verifyEmail(A.email);
       const right = await login(A.email);
       assert.strictEqual(right.status, 403);
       assert.strictEqual(right.json.code, "ACCOUNT_PENDING");
@@ -218,6 +235,7 @@ describe("Student Sign-up Suite", () => {
       if (!isDbConnected()) return t.skip("demo data mode");
       for (let attempt = 1; attempt <= 3; attempt++) {
         assert.strictEqual((await signup(form(B))).status, 202);
+        if (attempt === 1) await verifyEmail(B.email); // stays verified on re-applying
         const request = await requestFor(B.email);
         assert.strictEqual(request.attempts, attempt);
         await call("POST", `/signup-requests/${request.userId}/reject`, { as: "admin", body: { reason: `Attempt ${attempt} rejected` } });

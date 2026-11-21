@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { createApp } from "./app.js";
 import { connectDB } from "./config/db.js";
-import { demoModeAllowed, productionConfigProblems } from "./config/runtime.js";
+import { demoModeAllowed, mailConfigProblems, productionConfigProblems } from "./config/runtime.js";
 import { seedDatabaseIfEmpty } from "./utils/seed.js";
 import { scheduleDailyChecks } from "./services/daily-checks.service.js";
 
@@ -12,7 +12,8 @@ const app = createApp();
 
 async function startServer() {
   // S2: a production server must not start with a missing or guessable token secret
-  const problems = productionConfigProblems();
+  // MAIL-02: email codes need a real mail server in production
+  const problems = [...productionConfigProblems(), ...mailConfigProblems()];
   if (problems.length > 0) {
     console.error(`❌ Refusing to start in production: ${problems.join(" ")}`);
     process.exit(1);

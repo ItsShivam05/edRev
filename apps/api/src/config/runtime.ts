@@ -26,6 +26,31 @@ export function productionConfigProblems(env: NodeJS.ProcessEnv = process.env): 
   return problems;
 }
 
+export type MailTransportName = "memory" | "console" | "smtp";
+
+/**
+ * Email codes (docs/modules/email-codes.md §6): where emails go. MAIL_TRANSPORT forces one; the Node test runner
+ * gets the in-memory outbox; production and any server with SMTP_USER + SMTP_PASS sends for real; otherwise
+ * development prints emails (and their codes) in the API terminal.
+ */
+export function mailTransportName(env: NodeJS.ProcessEnv = process.env): MailTransportName {
+  const forced = env.MAIL_TRANSPORT;
+  if (forced === "memory" || forced === "console" || forced === "smtp") return forced;
+  if (env.NODE_TEST_CONTEXT) return "memory";
+  if (isProduction(env) || (env.SMTP_USER && env.SMTP_PASS)) return "smtp";
+  return "console";
+}
+
+/** MAIL-02: problems that must stop a production server from starting (kept apart from the S2 secret check). */
+export function mailConfigProblems(env: NodeJS.ProcessEnv = process.env): string[] {
+  if (!isProduction(env)) return [];
+  if (mailTransportName(env) !== "smtp") return ["MAIL_TRANSPORT must be smtp in production (students need their email codes)."];
+  const problems: string[] = [];
+  if (!env.SMTP_USER) problems.push("SMTP_USER is not set (email codes can't be sent).");
+  if (!env.SMTP_PASS) problems.push("SMTP_PASS is not set (email codes can't be sent).");
+  return problems;
+}
+
 /** S14: development only. The web app opened through any loopback address and port (localhost, 127.0.0.1, [::1]). */
 const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
 

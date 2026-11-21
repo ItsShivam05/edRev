@@ -1,3 +1,4 @@
+import { deleteUnverifiedSignupsService } from "./email-codes.service.js";
 import { escalateHelpRequestsService } from "./help.service.js";
 import { autoCheckinsService } from "./hours.service.js";
 import { evaluateTierSuggestionService, listTierSuggestionsService } from "./onboarding.service.js";
@@ -12,6 +13,8 @@ export interface DailyCheckSummary {
   autoCheckins: number;
   helpEscalated: number;
   staleTierSuggestions: number;
+  /** Email codes (VERIFY-02): first-time sign-ups that never verified their email within 24 h. */
+  unverifiedSignupsDeleted?: number;
 }
 
 /**
@@ -19,6 +22,7 @@ export interface DailyCheckSummary {
  * 2. Missed weekly check-ins → filled with the planned hours + one reminder.
  * 3. Help requests unanswered for 2 working days → escalated.
  * 4. H2: pending tier suggestions whose criteria are no longer met → withdrawn by the system.
+ * 5. Email codes (VERIFY-02): sign-ups that never verified their email within 24 h → deleted (full runs only).
  * `onlyStudentIds` limits a run to some students (an Administrator re-checking one student, and the tests).
  */
 export async function runDailyChecks(options: { now?: Date; onlyStudentIds?: string[] } = {}): Promise<DailyCheckSummary> {
@@ -51,6 +55,12 @@ export async function runDailyChecks(options: { now?: Date; onlyStudentIds?: str
       if (!after) summary.staleTierSuggestions++;
     }
   });
+
+  if (!scope) {
+    await step("unverified sign-ups", async () => {
+      summary.unverifiedSignupsDeleted = await deleteUnverifiedSignupsService(now);
+    });
+  }
 
   if (!scope) await step("record run", () => recordDailyRunService({ ...summary }));
   return summary;

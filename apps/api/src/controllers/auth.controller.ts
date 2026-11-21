@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { changePasswordService, getMeService, loginService, updatePreferencesService } from "../services/auth.service.js";
 import { SIGNUP_COURSES, SIGNUP_PROGRAMS, type UserPreferences } from "@edurev/types";
 import { getSignupConfigService, signupService } from "../services/signup.service.js";
+import { forgotPasswordService, resendSignupCodeService, resetPasswordService, verifySignupService } from "../services/email-codes.service.js";
 import { clear, consume, isLimited, record } from "../utils/rate-limit.js";
 
 const errorResponse = (res: Response, message: string, status = 400) =>
@@ -153,5 +154,84 @@ export async function updatePreferencesHandler(req: Request, res: Response): Pro
     res.json({ data, message: "Preferences saved." });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to save preferences.", err.statusCode || 400);
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Email codes (docs/modules/email-codes.md): sign-up verification and forgot password. All public.
+ * Replies that could reveal whether an account exists are always the same (202).
+ * ---------------------------------------------------------------------------------------------- */
+
+const HOUR_MS = 60 * 60 * 1000;
+// OTP-07: per device (IP address); env overrides for tests and busy campuses
+const codeSendLimit = () => Number(process.env.OTP_SEND_RATE_LIMIT ?? 20);
+const codeCheckLimit = () => Number(process.env.OTP_CHECK_RATE_LIMIT ?? 30);
+
+const validEmail = (value: unknown): value is string => typeof value === "string" && value.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const passwordProblem = (value: unknown) =>
+  typeof value !== "string" || value.length < 8 || value.length > 128 || !/[A-Za-z]/.test(value) || !/\d/.test(value)
+    ? "New password must be 8 to 128 characters and include a letter and a number."
+    : null;
+
+function tooManyFrom(req: Request, kind: "send" | "check"): boolean {
+  return kind === "send"
+    ? !consume(`otp-send:${req.ip}`, codeSendLimit(), HOUR_MS)
+    : !consume(`otp-check:${req.ip}`, codeCheckLimit(), 15 * 60 * 1000);
+}
+
+/** POST /auth/signup/verify { email, password, code } */
+export async function verifySignupHandler(req: Request, res: Response): Promise<void> {
+  const { email, password, code } = req.body ?? {};
+  if (!validEmail(email) || typeof password !== "string" || !password || typeof code !== "string") {
+    return void errorResponse(res, "Enter your email, your password and the 6-digit code.");
+  }
+  if (tooManyFrom(req, "check")) return void errorResponse(res, "Too many tries from this device. Please wait 15 minutes.", 429);
+  try {
+    await verifySignupService(email, password, code);
+    res.json({ data: { status: "VERIFIED" }, message: "Email verified. Your request is now with your cell coordinator." });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Couldn't verify the code.", err.statusCode || 400);
+  }
+}
+
+/** POST /auth/signup/resend { email } */
+export async function resendSignupCodeHandler(req: Request, res: Response): Promise<void> {
+  const { email } = req.body ?? {};
+  if (!validEmail(email)) return void errorResponse(res, "Please enter a valid email address.");
+  if (tooManyFrom(req, "send")) return void errorResponse(res, "Too many code requests from this device. Please try again later.", 429);
+  try {
+    await resendSignupCodeService(email);
+    res.status(202).json({ status: "RECEIVED", message: "If a sign-up is waiting for this email, we've sent a new code. Check your Junk folder too." });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Couldn't send a new code.", err.statusCode || 400);
+  }
+}
+
+/** POST /auth/password/forgot { email } */
+export async function forgotPasswordHandler(req: Request, res: Response): Promise<void> {
+  const { email } = req.body ?? {};
+  if (!validEmail(email)) return void errorResponse(res, "Please enter a valid email address.");
+  if (tooManyFrom(req, "send")) return void errorResponse(res, "Too many code requests from this device. Please try again later.", 429);
+  try {
+    await forgotPasswordService(email);
+    res.status(202).json({ status: "RECEIVED", message: "If an account exists for this email, we've sent a code. Check your Junk folder too." });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Couldn't send a code.", err.statusCode || 400);
+  }
+}
+
+/** POST /auth/password/reset { email, code, newPassword } */
+export async function resetPasswordHandler(req: Request, res: Response): Promise<void> {
+  const { email, code, newPassword } = req.body ?? {};
+  if (!validEmail(email) || typeof code !== "string") return void errorResponse(res, "Enter your email and the 6-digit code.");
+  const problem = passwordProblem(newPassword);
+  if (problem) return void errorResponse(res, problem);
+  if (tooManyFrom(req, "check")) return void errorResponse(res, "Too many tries from this device. Please wait 15 minutes.", 429);
+  try {
+    await resetPasswordService(email, code, newPassword);
+    clear(`login:${email.trim().toLowerCase()}:${req.ip}`); // RESET-04: the sign-in lock-out ends too
+    res.json({ data: { status: "CHANGED" }, message: "Password changed. Sign in with your new password." });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Couldn't reset the password.", err.statusCode || 400);
   }
 }
