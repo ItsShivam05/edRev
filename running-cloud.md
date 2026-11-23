@@ -41,6 +41,7 @@ Whole-project read-through after Phase 4. Nothing changed yet. Full details, edg
 - [ ] R-18 A verified earning can't be reopened; the student's total is saved by read-then-save.
 
 **Security (before deploy)**
+- [ ] R-31 The API creates the 9 demo accounts (Administrator too, `Password123!`) on an empty production database. The login page role buttons and pre-filled login were removed 23 Nov 2026; accounts are listed in `docs/demo-accounts.md` (local). Until fixed: change every demo password right after deploying.
 - [ ] R-19 Login limit only per email + IP (add per-IP and per-email limits).
 - [ ] R-20 `trust proxy` not set: behind a host proxy everyone shares one IP for the rate limits.
 - [ ] R-21 Logout only clears the browser (token valid up to 1 day, kept in localStorage): add "Sign out everywhere".

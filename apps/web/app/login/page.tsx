@@ -7,34 +7,9 @@ import { CountUp } from "@/components/login/count-up";
 import { VerifiedDone, VerifyEmailStep } from "@/components/login/email-code";
 import { ForgotPasswordForm } from "@/components/login/forgot-password";
 import { SignupForm } from "@/components/login/signup-form";
-import {
-  IconAnalytics,
-  IconArrowRight,
-  IconBriefcase,
-  IconEarnings,
-  IconFileText,
-  IconGraduationCap,
-  IconSettings,
-  IconShield,
-  IconStudents,
-  IconUserCheck,
-} from "@/components/ui/icons";
+import { IconArrowRight } from "@/components/ui/icons";
 import { LogoMark } from "@/components/ui/logo";
 import { useAuth } from "@/lib/auth-context";
-
-const DEV_PASSWORD = "Password123!";
-
-const demoRoles = [
-  { email: "student@revalanche.local", label: "Student", line: "Bid & earn", icon: IconGraduationCap },
-  { email: "analyst@revalanche.local", label: "Bid Desk Analyst", line: "Allocate work", icon: IconBriefcase },
-  { email: "editor@revalanche.local", label: "Proposal Editor", line: "Review proposals", icon: IconFileText },
-  { email: "guild@revalanche.local", label: "Guild Lead", line: "Mentor training", icon: IconStudents },
-  { email: "coordinator@revalanche.local", label: "Cell Coordinator", line: "Run the cell", icon: IconUserCheck },
-  { email: "faculty@revalanche.local", label: "Faculty Director", line: "Guard safeguards", icon: IconShield },
-  { email: "placement@revalanche.local", label: "Placement Office", line: "Track outcomes", icon: IconAnalytics },
-  { email: "dean@revalanche.local", label: "Dean", line: "Verify earnings", icon: IconEarnings },
-  { email: "admin@revalanche.local", label: "Administrator", line: "Full control", icon: IconSettings },
-];
 
 const journey = ["Train", "Bid", "Earn", "Grow"];
 
@@ -42,8 +17,10 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState("student@revalanche.local");
-  const [password, setPassword] = useState(DEV_PASSWORD);
+  // Demo logins are no longer pre-filled or offered as buttons (anyone could use them on a live site).
+  // The 9 demo accounts are listed in docs/demo-accounts.md.
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [accountStatus, setAccountStatus] = useState<{ code: string; message: string } | null>(null);
@@ -82,14 +59,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const quickFill = (eMail: string) => {
-    setEmail(eMail);
-    setPassword(DEV_PASSWORD);
-    setError("");
-    setInfo("");
-    setAccountStatus(null);
   };
 
   const switchMode = (next: "signin" | "signup" | "forgot", prefillEmail?: string) => {
@@ -260,7 +229,7 @@ export default function LoginPage() {
                 id="email"
                 className="mt-1.5 w-full rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] px-4 py-2.5 text-sm text-[#30343B] placeholder-[#8C93A0] outline-none transition focus:border-[#3978B8] focus:bg-white focus:ring-2 focus:ring-[#C2DCF2]"
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@revalanche.local"
+                placeholder="yourname@lpu.in"
                 required
                 type="email"
                 value={email}
@@ -296,39 +265,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="border-t border-[#E6E6E6] pt-5">
-            <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-wider text-[#666D7A]">
-              Explore as a role (click to fill)
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {demoRoles.map(({ email: roleEmail, label, line, icon: Icon }) => {
-                const selected = email === roleEmail;
-                return (
-                  <button
-                    aria-pressed={selected}
-                    className={`group flex items-start gap-2 rounded-xl border p-2.5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#F2A65A] hover:bg-[#FEF6EE] hover:shadow-[0_8px_20px_-8px_rgba(242,166,90,0.6)] ${
-                      selected ? "border-[#F2A65A] bg-[#FEF6EE] ring-1 ring-[#FBD7B3]" : "border-[#E6E6E6] bg-[#F7F7F6]"
-                    }`}
-                    key={roleEmail}
-                    onClick={() => quickFill(roleEmail)}
-                    type="button"
-                  >
-                    <span
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition ${
-                        selected ? "bg-[#F2A65A] text-white" : "bg-white text-[#3978B8] group-hover:bg-[#F2A65A] group-hover:text-white"
-                      }`}
-                    >
-                      <Icon size={15} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-xs font-bold leading-tight text-[#30343B]">{label}</span>
-                      <span className="mt-0.5 block truncate text-[10.5px] text-[#666D7A]">{line}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
           </>
           )}
         </div>
