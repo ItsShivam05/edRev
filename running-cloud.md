@@ -1,6 +1,6 @@
 # Running notes: where we left off (22 Nov 2026)
 
-**Next:** fix the project review findings below (R-01 first), then Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is on `main` and GitHub. Email codes are on branch `feature/email-codes` (not merged, not pushed).
+**Next:** fix the project review findings below (R-01 first), then Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is on `main` and GitHub. Email codes are merged into `main` and pushed (23 Nov 2026); real emails tested with the Gmail App password.
 
 ## Email codes: sign-up verification and forgot password, done 22 Nov 2026
 
@@ -12,7 +12,7 @@ Full doc: `docs/modules/email-codes.md` (local). Edge cases OTP-*, VERIFY-*, RES
 - **Sending is free:** Gmail + App password. Until `SMTP_USER` / `SMTP_PASS` are in `apps/api/.env`, codes are printed in the API terminal. Production refuses to start without them.
 - Also fixed: the login page and sign-up checkbox said "20h weekly cap"; now 10 h in term (20 h in breaks).
 - 213 API tests (211 pass + 2 skipped on MongoDB; 190 pass + 23 skipped in demo mode), typecheck and web build OK. Screenshots: sign-up code step, wrong code, verified, coordinator list with "Email verified", forgot password (both steps), password changed, phone.
-- **To do (user):** create the project Gmail account, turn on 2-Step Verification, create an App password, put it in `apps/api/.env`, restart the API and test with a real `@lpu.in` address (check Junk the first time).
+- ✅ Gmail App password set up in `apps/api/.env` (git-ignored) and real codes arrive in Outlook (23 Nov 2026).
 
 ## Project review: findings to fix later (10 Nov 2026)
 
